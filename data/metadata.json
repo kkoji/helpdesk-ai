@@ -1,0 +1,42 @@
+{
+  "01_paid_leave.txt": {
+    "title": "有給休暇規程",
+    "summary": "有給休暇の付与日数、申請手順、取得単位、有効期限について。",
+    "department": "人事部"
+  },
+  "02_expense_claim.txt": {
+    "title": "経費精算規程",
+    "summary": "経費精算の締切日(毎月15日)、上限金額、申請方法、振込日について。",
+    "department": "経理部"
+  },
+  "03_remote_work.txt": {
+    "title": "リモートワーク規程",
+    "summary": "リモートワークの対象者、利用可能日数、申請方法、支給機器、通信手当について。",
+    "department": "総務部"
+  },
+  "04_it_security.txt": {
+    "title": "情報セキュリティポリシー",
+    "summary": "パスワード管理、端末管理、ソフトウェアインストール、ファイル共有のルールについて。",
+    "department": "情報システム部"
+  },
+  "05_training.txt": {
+    "title": "研修・教育制度",
+    "summary": "年間研修予算、対象となる研修、申請方法、社内研修について。",
+    "department": "人事部"
+  },
+  "06_commute_allowance.txt": {
+    "title": "通勤手当規程",
+    "summary": "通勤手当の支給上限、対象交通機関、申請方法、変更時の手続きについて。",
+    "department": "総務部"
+  },
+  "07_overtime.txt": {
+    "title": "時間外勤務規程",
+    "summary": "時間外勤務の上限時間、事前申請、割増率、代休について。",
+    "department": "人事部"
+  },
+  "08_equipment_request.txt": {
+    "title": "PC・備品申請手続き",
+    "summary": "PC・周辺機器・ソフトウェアライセンスの申請方法、納期目安、支給基準について。",
+    "department": "情報システム部"
+  }
+}
