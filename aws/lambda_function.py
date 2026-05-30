@@ -17,7 +17,7 @@ from typing import Annotated, Any, Literal, Optional, Sequence, TypedDict
 import boto3
 import faiss
 import numpy as np
-from langchain_aws import ChatBedrock
+from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -48,8 +48,13 @@ INDEX_KEY = "__INDEX_KEY__"
 CHUNKS_KEY = "__CHUNKS_KEY__"
 SESSION_HISTORY_TABLE = "__SESSION_HISTORY_TABLE__"
 AWS_REGION = "__AWS_REGION__"
-BEDROCK_MODEL_ID = "__BEDROCK_MODEL_ID__"
 EMBED_MODEL_ID = "__EMBED_MODEL_ID__"
+
+# AWS Academy / Vocareum 等のラボでは Bedrock の Anthropic Use case フォーム提出が
+# account 単位で必要かつラボ再起動で都度リセットされてしまうため、
+# チャット LLM は Bedrock ではなく Anthropic 公式 API を直接叩く。
+ANTHROPIC_API_KEY = "__ANTHROPIC_API_KEY__"
+ANTHROPIC_MODEL_ID = "__ANTHROPIC_MODEL_ID__"
 
 # RAG 検索の上位 K 件
 RAG_TOP_K = 3
@@ -262,12 +267,17 @@ def _build_system_prompt() -> str:
 回答は根拠となる文書を明示し、簡潔かつ正確に答えてください。"""
 
 
-def _get_llm() -> ChatBedrock:
-    """LLM インスタンスを返す (ツールバインド済み)"""
-    llm = ChatBedrock(
-        model_id=BEDROCK_MODEL_ID,
-        region_name=AWS_REGION,
-        model_kwargs={"temperature": 0, "max_tokens": 1024},
+def _get_llm() -> ChatAnthropic:
+    """LLM インスタンスを返す (ツールバインド済み)
+
+    Anthropic 公式 API (https://console.anthropic.com) を直接呼ぶ。
+    API キーはデプロイ時に sed でプレースホルダに埋め込まれている。
+    """
+    llm = ChatAnthropic(
+        model=ANTHROPIC_MODEL_ID,
+        api_key=ANTHROPIC_API_KEY,
+        temperature=0,
+        max_tokens=1024,
     )
     return llm.bind_tools(TOOLS)
 
