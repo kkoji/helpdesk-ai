@@ -14,5 +14,7 @@ __pycache__/
 .env
 .env.*
 
+aws/.build/
+
 # macOS
 .DS_Store
