@@ -17,7 +17,7 @@ from typing import Annotated, Any, Literal, Optional, Sequence, TypedDict
 import boto3
 import faiss
 import numpy as np
-from langchain_aws import ChatBedrockConverse
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -50,8 +50,9 @@ SESSION_HISTORY_TABLE = "__SESSION_HISTORY_TABLE__"
 AWS_REGION = "__AWS_REGION__"
 EMBED_MODEL_ID = "__EMBED_MODEL_ID__"
 
-# チャット LLM は Bedrock の Anthropic Claude を Converse API 経由で呼ぶ。
-# (埋め込みと同じく bedrock-runtime を使うため、追加の API キーは不要)
+# チャット・埋め込みとも OpenAI API (https://platform.openai.com) を直接呼ぶ。
+# API キーはデプロイ時に sed でプレースホルダに埋め込まれる。
+OPENAI_API_KEY = "__OPENAI_API_KEY__"
 CHAT_MODEL_ID = "__CHAT_MODEL_ID__"
 
 # RAG 検索の上位 K 件
@@ -64,9 +65,9 @@ RAG_TOP_K = 3
 GRAPH_RECURSION_LIMIT = 6
 
 _s3 = boto3.client("s3", region_name=AWS_REGION)
-_bedrock = boto3.client("bedrock-runtime", region_name=AWS_REGION)
 _dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 _table = _dynamodb.Table(SESSION_HISTORY_TABLE)
+_embeddings = OpenAIEmbeddings(model=EMBED_MODEL_ID, api_key=OPENAI_API_KEY)
 
 _DOC_METADATA_CACHE: Optional[dict] = None
 _FAISS_INDEX = None  # faiss.Index (遅延ロード)
@@ -107,20 +108,9 @@ def _load_vector_index() -> None:
 
 
 def _embed_query(text: str) -> np.ndarray:
-    """Bedrock Titan Embeddings v2 で query をベクトル化する
-
-    `normalize=True` で L2 正規化された 1×D のベクトルが返るため、
-    そのまま IndexFlatIP の内積でコサイン類似度として比較できる。
-    """
-    body = json.dumps({"inputText": text, "normalize": True})
-    resp = _bedrock.invoke_model(
-        modelId=EMBED_MODEL_ID,
-        body=body,
-        contentType="application/json",
-        accept="application/json",
-    )
-    payload = json.loads(resp["body"].read())
-    return np.array([payload["embedding"]], dtype="float32")
+    """OpenAI Embeddings で query をベクトル化する"""
+    vec = _embeddings.embed_query(text)
+    return np.array([vec], dtype="float32")
 
 
 # ======================================================================
@@ -131,7 +121,7 @@ def _embed_query(text: str) -> np.ndarray:
 def tool_rag_search(query: str) -> str:
     """ユーザーの質問に関連する社内文書のチャンクを取得する
 
-    質問を Bedrock Titan Embeddings v2 でベクトル化し、FAISS で
+    質問を OpenAI Embeddings でベクトル化し、FAISS で
     類似度上位 RAG_TOP_K 件のチャンクを返す。各チャンクには出典 (文書ID,
     セクション名) と類似度スコア (cosine similarity) を付与する。
     """
@@ -265,15 +255,15 @@ def _build_system_prompt() -> str:
 回答は根拠となる文書を明示し、簡潔かつ正確に答えてください。"""
 
 
-def _get_llm() -> ChatBedrockConverse:
+def _get_llm() -> ChatOpenAI:
     """LLM インスタンスを返す (ツールバインド済み)
 
-    Bedrock の Anthropic Claude を Converse API 経由で呼ぶ。
-    認証は Lambda 実行ロールの IAM 権限 (bedrock:InvokeModel) による。
+    OpenAI API (https://platform.openai.com) を直接呼ぶ。
+    API キーはデプロイ時に sed でプレースホルダに埋め込まれている。
     """
-    llm = ChatBedrockConverse(
+    llm = ChatOpenAI(
         model=CHAT_MODEL_ID,
-        region_name=AWS_REGION,
+        api_key=OPENAI_API_KEY,
         temperature=0,
         max_tokens=1024,
     )
@@ -509,7 +499,7 @@ def lambda_handler(event: dict, context: Any) -> dict:
             return _response(500, {"error": "AI 応答が生成されませんでした"})
 
         reply = reply_msg.content
-        # Bedrock が content を list で返すケースに対応
+        # content が list で返るケースに対応
         # （1つの回答が複数の文字列に分かれて配列として content に入っているケースがあり得る）
         if isinstance(reply, list):
             reply = "".join(

@@ -2,14 +2,15 @@
 
 各ドキュメントがマークダウン形式で記述されていることを前提とし、
 見出しレベル2（`##`）のセクション単位で分割し、長いセクションは MAX_CHUNK_CHARS 定数に設定した文字数内で再分割する。
-Bedrock Titan Embeddings v2 でベクトル化し、FAISS (IndexFlatIP) に格納して保存する。
+OpenAI Embeddings (text-embedding-3-small) でベクトル化し、FAISS (IndexFlatIP) に格納して保存する。
+
+前提: 環境変数 OPENAI_API_KEY を設定しておくこと (export OPENAI_API_KEY=sk-...)。
 
 実行例:
     python build_index.py \\
         --docs-dir ../data/docs \\          # 元となる社内文書が入ったフォルダ（必須）
         --metadata ../data/metadata.json \\ # 各文書の付加情報（doc_id・タイトル等）を定義する JSON（必須）
-        --output-dir .build/vector_index \\ # 生成物（index.faiss / chunks.json）の出力先フォルダ（必須）
-        --region us-east-1                  # Bedrock(Titan) を呼び出す AWS リージョン（省略時は AWS_REGION → us-east-1）
+        --output-dir .build/vector_index    # 生成物（index.faiss / chunks.json）の出力先フォルダ（必須）
 
 出力:
     {output-dir}/index.faiss   ... FAISS バイナリインデックス
@@ -18,15 +19,14 @@ Bedrock Titan Embeddings v2 でベクトル化し、FAISS (IndexFlatIP) に格�
 
 import argparse
 import json
-import os
 from pathlib import Path
 
-import boto3
 import faiss
 import numpy as np
+from langchain_openai import OpenAIEmbeddings
 
 
-EMBED_MODEL_ID = "amazon.titan-embed-text-v2:0"
+EMBED_MODEL_ID = "text-embedding-3-small"
 MAX_CHUNK_CHARS = 400
 OVERLAP_CHARS = 50
 
@@ -104,26 +104,10 @@ def build_chunks_for_doc(doc_id: str, doc_text: str, doc_meta: dict) -> list[dic
     return chunks
 
 
-def embed_texts(client, texts: list[str]) -> np.ndarray:
-    """Bedrock Titan Embeddings v2 でテキストをベクトル化する."""
-    vectors = []
-    for i, text in enumerate(texts):
-        # Titan へのリクエスト本文を JSON 文字列に変換する。
-        #   inputText : ベクトル化したいテキスト
-        #   normalize : True で長さ1に揃えた(L2正規化済み)ベクトルを返させる。
-        #               後段の IndexFlatIP(内積)でそのままコサイン類似度として扱えるようにするため。
-        body = json.dumps({"inputText": text, "normalize": True})
-        resp = client.invoke_model(
-            modelId=EMBED_MODEL_ID,
-            body=body,
-            contentType="application/json",
-            accept="application/json",
-        )
-        payload = json.loads(resp["body"].read())
-        vectors.append(payload["embedding"])
-        # 10件ずつ embeddings の進捗を表示
-        if (i + 1) % 10 == 0 or i == len(texts) - 1:
-            print(f"  {i + 1} / {len(texts)} 件埋め込み完了")
+def embed_texts(embeddings: OpenAIEmbeddings, texts: list[str]) -> np.ndarray:
+    """OpenAI Embeddings でテキストをベクトル化する"""
+    vectors = embeddings.embed_documents(texts)
+    print(f"  {len(vectors)} / {len(texts)} 件埋め込み完了")
     return np.array(vectors, dtype="float32")
 
 
@@ -132,9 +116,6 @@ def main() -> None:
     parser.add_argument("--docs-dir", required=True)
     parser.add_argument("--metadata", required=True)
     parser.add_argument("--output-dir", required=True)
-    parser.add_argument(
-        "--region", default=os.environ.get("AWS_REGION", "us-east-1")
-    )
     args = parser.parse_args()
 
     docs_dir = Path(args.docs_dir)
@@ -142,7 +123,8 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    bedrock = boto3.client("bedrock-runtime", region_name=args.region)
+    # OPENAI_API_KEY は環境変数から自動で読み取られる
+    embeddings = OpenAIEmbeddings(model=EMBED_MODEL_ID)
 
     all_chunks: list[dict] = []
     for doc_id, doc_meta in metadata.items():
@@ -150,8 +132,8 @@ def main() -> None:
         all_chunks.extend(build_chunks_for_doc(doc_id, doc_text, doc_meta))
     print(f"チャンク総数: {len(all_chunks)}")
 
-    print(f"Bedrock Titan Embeddings ({EMBED_MODEL_ID}) でベクトル化...")
-    vectors = embed_texts(bedrock, [c["embedding_text"] for c in all_chunks])
+    print(f"OpenAI Embeddings ({EMBED_MODEL_ID}) でベクトル化...")
+    vectors = embed_texts(embeddings, [c["embedding_text"] for c in all_chunks])
     print(f"ベクトル形状: {vectors.shape}")
 
     # ベクトルの次元数を渡して index を初期化
