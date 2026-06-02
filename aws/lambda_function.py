@@ -17,7 +17,7 @@ from typing import Annotated, Any, Literal, Optional, Sequence, TypedDict
 import boto3
 import faiss
 import numpy as np
-from langchain_anthropic import ChatAnthropic
+from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -50,11 +50,9 @@ SESSION_HISTORY_TABLE = "__SESSION_HISTORY_TABLE__"
 AWS_REGION = "__AWS_REGION__"
 EMBED_MODEL_ID = "__EMBED_MODEL_ID__"
 
-# AWS Academy / Vocareum 等のラボでは Bedrock の Anthropic Use case フォーム提出が
-# account 単位で必要かつラボ再起動で都度リセットされてしまうため、
-# チャット LLM は Bedrock ではなく Anthropic 公式 API を直接叩く。
-ANTHROPIC_API_KEY = "__ANTHROPIC_API_KEY__"
-ANTHROPIC_MODEL_ID = "__ANTHROPIC_MODEL_ID__"
+# チャット LLM は Bedrock の Anthropic Claude を Converse API 経由で呼ぶ。
+# (埋め込みと同じく bedrock-runtime を使うため、追加の API キーは不要)
+CHAT_MODEL_ID = "__CHAT_MODEL_ID__"
 
 # RAG 検索の上位 K 件
 RAG_TOP_K = 3
@@ -267,15 +265,15 @@ def _build_system_prompt() -> str:
 回答は根拠となる文書を明示し、簡潔かつ正確に答えてください。"""
 
 
-def _get_llm() -> ChatAnthropic:
+def _get_llm() -> ChatBedrockConverse:
     """LLM インスタンスを返す (ツールバインド済み)
 
-    Anthropic 公式 API (https://console.anthropic.com) を直接呼ぶ。
-    API キーはデプロイ時に sed でプレースホルダに埋め込まれている。
+    Bedrock の Anthropic Claude を Converse API 経由で呼ぶ。
+    認証は Lambda 実行ロールの IAM 権限 (bedrock:InvokeModel) による。
     """
-    llm = ChatAnthropic(
-        model=ANTHROPIC_MODEL_ID,
-        api_key=ANTHROPIC_API_KEY,
+    llm = ChatBedrockConverse(
+        model=CHAT_MODEL_ID,
+        region_name=AWS_REGION,
         temperature=0,
         max_tokens=1024,
     )
