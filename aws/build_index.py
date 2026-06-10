@@ -88,7 +88,7 @@ def build_chunks_for_doc(doc_id: str, doc_text: str, doc_meta: dict) -> list[dic
     # ドキュメントごとに、セクション（見出しレベル2）単位で、タイトル・本文をループ処理
     for section_title, section_body in split_into_sections(doc_text):
         for piece in split_long(section_body, MAX_CHUNK_CHARS, OVERLAP_CHARS):
-            # 埋め込み対象テキストには文書タイトル + セクション名も含めて
+            # Embeddings 対象テキストには文書タイトル + セクション名も含めて
             # 「## 締切日」のような短い節題でも文脈を伴って検索できるようにする。
             embedding_text = (
                 f"# {doc_meta['title']}\n## {section_title}\n{piece}"
@@ -107,7 +107,7 @@ def build_chunks_for_doc(doc_id: str, doc_text: str, doc_meta: dict) -> list[dic
 def embed_texts(embeddings: OpenAIEmbeddings, texts: list[str]) -> np.ndarray:
     """OpenAI Embeddings でテキストをベクトル化する"""
     vectors = embeddings.embed_documents(texts)
-    print(f"  {len(vectors)} / {len(texts)} 件埋め込み完了")
+    print(f"  {len(vectors)} / {len(texts)} 件 Embeddings 完了")
     return np.array(vectors, dtype="float32")
 
 
