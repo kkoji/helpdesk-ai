@@ -9,6 +9,7 @@
 """
 
 import json
+import os
 import tempfile
 import time
 from datetime import date, datetime, timedelta
@@ -37,23 +38,25 @@ from langgraph.graph.message import add_messages
 # モジュールスコープの変数は初回呼び出し後も再利用される。
 # S3 アクセスを最小化するため、メタデータと本文をここにキャッシュする。
 #
-# 注: Udemy のラボ用 AWS 環境では KMS Encrypt が拒否されるため Lambda 環境変数が使えない。
-# そのため、設定値はプレースホルダ (__XXX__) としてコードに埋め込み、
-# deploy.sh が sed で実値に置換してから zip にパッケージする方式を採用している。
+# 設定値は Lambda 環境変数から読み込む。
+# deploy.sh が `aws lambda ... --environment` で各値を注入する。
+# 環境変数を使うことで、設定変更のたびにコードを再パッケージする必要がなくなり、
+# API キーなどの機密値もソースコードや zip に残らない。
 
-S3_BUCKET = "__S3_BUCKET__"
-DOCS_PREFIX = "__DOCS_PREFIX__"
-METADATA_KEY = "__METADATA_KEY__"
-INDEX_KEY = "__INDEX_KEY__"
-CHUNKS_KEY = "__CHUNKS_KEY__"
-SESSION_HISTORY_TABLE = "__SESSION_HISTORY_TABLE__"
-AWS_REGION = "__AWS_REGION__"
-EMBED_MODEL_ID = "__EMBED_MODEL_ID__"
+S3_BUCKET = os.environ["S3_BUCKET"]
+DOCS_PREFIX = os.environ["DOCS_PREFIX"]
+METADATA_KEY = os.environ["METADATA_KEY"]
+INDEX_KEY = os.environ["INDEX_KEY"]
+CHUNKS_KEY = os.environ["CHUNKS_KEY"]
+SESSION_HISTORY_TABLE = os.environ["SESSION_HISTORY_TABLE"]
+# AWS_REGION は Lambda ランタイムが自動で設定する予約環境変数 (手動設定は不要)。
+AWS_REGION = os.environ["AWS_REGION"]
+EMBED_MODEL_ID = os.environ["EMBED_MODEL_ID"]
 
-# チャット・埋め込みとも OpenAI API (https://platform.openai.com) を直接呼ぶ。
-# API キーはデプロイ時に sed でプレースホルダに埋め込まれる。
-OPENAI_API_KEY = "__OPENAI_API_KEY__"
-CHAT_MODEL_ID = "__CHAT_MODEL_ID__"
+# チャット・Embeddings とも OpenAI API (https://platform.openai.com) を直接呼ぶ。
+# API キーは Lambda 環境変数 OPENAI_API_KEY 経由で渡す。
+OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+CHAT_MODEL_ID = os.environ["CHAT_MODEL_ID"]
 
 # RAG 検索の上位 K 件
 RAG_TOP_K = 3
